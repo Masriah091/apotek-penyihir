@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apotek Penyihir — Ramuan Terlarang</title>
+<link rel="icon" href="data:,">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #140d1e; }
+  body { font-family: Georgia, 'Times New Roman', serif; color: #f2eaff; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .panel {
+    background: rgba(16, 10, 26, 0.82);
+    border: 1px solid rgba(201, 162, 39, 0.55);
+    border-radius: 10px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+  }
+  /* HUD kiri atas: statistik + meter deteksi */
+  #hud { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  #stats {
+    position: absolute; top: 10px; left: 10px;
+    padding: 9px 13px; font-size: 15px; line-height: 1.45; max-width: 430px;
+  }
+  #stats b { color: #ffd34d; }
+  #meterBox {
+    position: absolute; top: 118px; left: 10px; width: 215px;
+    padding: 8px 11px; font-size: 13px;
+  }
+  #meterLabel { font-weight: bold; letter-spacing: 1px; color: #ffe14d; }
+  #meterTrack {
+    height: 10px; margin-top: 5px; border-radius: 5px;
+    background: rgba(255, 255, 255, 0.14); overflow: hidden;
+  }
+  #meterFill { height: 100%; width: 0%; background: #39d353; transition: width 0.15s linear; }
+  #smokeNote { margin-top: 6px; font-size: 12px; color: #9fe8a8; }
+  #invisTag {
+    display: none; margin-top: 6px; padding: 2px 7px; border-radius: 6px;
+    background: #b46bff; color: #fff; font-size: 12px; font-weight: bold;
+  }
+  /* Strip status penjaga */
+  #guardStrip {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    padding: 7px 16px; font-size: 14px; white-space: nowrap; max-width: 96vw;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  #guardStrip .susp { color: #ff9500; font-weight: bold; }
+  #guardStrip .alert { color: #ff3b30; font-weight: bold; }
+  /* Minimap */
+  #minimap {
+    position: absolute; right: 10px; bottom: 10px; width: 208px; height: 150px;
+    border: 1px solid rgba(201, 162, 39, 0.55); border-radius: 8px;
+    background: rgba(16, 10, 26, 0.85);
+  }
+  /* Bar kontrol bawah */
+  #controlsBar {
+    position: absolute; left: 10px; bottom: 10px; padding: 8px 13px;
+    font-size: 13px; color: #d8c8f0;
+  }
+  #muteBtn {
+    position: absolute; right: 228px; bottom: 10px; padding: 8px 12px;
+    font-size: 13px; color: #ffe14d; cursor: pointer; pointer-events: auto;
+    font-family: inherit;
+  }
+  /* Toast tengah atas + prompt bawah tengah */
+  #toast {
+    position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+    padding: 8px 18px; font-size: 16px; color: #ffd34d; font-weight: bold;
+    opacity: 0; transition: opacity 0.3s; white-space: nowrap; max-width: 94vw;
+    overflow: hidden; text-overflow: ellipsis; text-align: center;
+  }
+  #prompt {
+    position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%);
+    padding: 7px 16px; font-size: 15px; color: #39ff88; font-weight: bold;
+    opacity: 0; transition: opacity 0.2s; white-space: nowrap;
+  }
+  /* Layar judul & akhir: overlay radial tembus pandang, adegan tetap memenuhi frame */
+  .screen {
+    position: fixed; inset: 0; z-index: 10; display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px;
+    background: radial-gradient(ellipse at center, rgba(12, 7, 20, 0.62) 0%, rgba(12, 7, 20, 0.38) 55%, rgba(12, 7, 20, 0.08) 100%);
+  }
+  #titleScreen { display: flex; }
+  #endScreen { display: none; }
+  .kicker { letter-spacing: 6px; font-size: 15px; color: #c9a2ff; text-transform: uppercase; }
+  h1 {
+    font-size: 58px; color: #ffd34d; margin: 8px 0 4px;
+    text-shadow: 0 0 24px rgba(255, 211, 77, 0.45), 0 3px 0 rgba(0, 0, 0, 0.6);
+  }
+  .subtitle { font-size: 22px; color: #9fe8a8; font-style: italic; margin-bottom: 14px; }
+  .goalBox { max-width: 620px; font-size: 16px; line-height: 1.55; color: #efe6ff; }
+  .goalBox b { color: #ffd34d; }
+  .howto {
+    max-width: 640px; margin-top: 12px; font-size: 14px; line-height: 1.55; color: #cbb8e8;
+    background: rgba(20, 12, 32, 0.6); border: 1px solid rgba(159, 232, 168, 0.3);
+    border-radius: 10px; padding: 10px 16px;
+  }
+  .howto b { color: #9fe8a8; }
+  .cta {
+    margin-top: 18px; padding: 13px 30px; font-size: 18px; font-weight: bold;
+    color: #1a0d2e; background: linear-gradient(180deg, #ffe14d, #e8b800);
+    border: none; border-radius: 999px; cursor: pointer; font-family: inherit;
+    box-shadow: 0 6px 22px rgba(255, 211, 77, 0.4);
+  }
+  .cta:hover { filter: brightness(1.08); }
+  .keys { margin-top: 12px; font-size: 13px; color: #a98fd0; }
+  #endTitle { font-size: 56px; }
+  #endGrade {
+    font-size: 92px; line-height: 1; color: #ffd34d; font-weight: bold;
+    text-shadow: 0 0 30px rgba(255, 211, 77, 0.6); margin: 6px 0;
+  }
+  .gradeLabel { font-size: 14px; letter-spacing: 4px; color: #cbb8e8; }
+  #endStats { font-size: 18px; line-height: 1.6; color: #efe6ff; margin-top: 8px; }
+  #endNote { margin-top: 8px; font-size: 15px; color: #cbb8e8; font-style: italic; }
+</style>
+</head>
+<body>
+<canvas id="game" width="1280" height="800"></canvas>
+
+<div id="hud">
+  <div id="stats" class="panel"></div>
+  <div id="meterBox" class="panel">
+    <span id="meterLabel">TERSEMBUNYI</span>
+    <div id="meterTrack"><div id="meterFill"></div></div>
+    <div id="smokeNote">☁️ Berdiri di asap kuali = sulit terlihat</div>
+    <span id="invisTag"></span>
+  </div>
+  <div id="guardStrip" class="panel"></div>
+  <div id="toast" class="panel"></div>
+  <div id="prompt" class="panel"></div>
+  <div id="controlsBar" class="panel">WASD gerak · Shift menyelinap · E interaksi · Q lempar botol · F tembus pandang · M mute · R restart</div>
+  <button id="muteBtn" class="panel">🔊 Suara: HIDUP (M)</button>
+  <canvas id="minimap" width="208" height="150"></canvas>
+</div>
+
+<div id="titleScreen" class="screen">
+  <div class="kicker">Apotek Penyihir</div>
+  <h1>Ramuan Terlarang</h1>
+  <div class="subtitle">Curi 3 ramuan di balik asap — tengah malam, tanpa terlihat.</div>
+  <div class="goalBox"><b>GOAL:</b> Curi <b>Ramuan Waktu</b>, <b>Ramuan Bayangan</b>, dan <b>Ramuan Naga</b> dari rak dan kuali, lalu kabur lewat pintu <b>EXIT</b> — tanpa terlihat satu pun penjaga.</div>
+  <div class="goalBox" style="margin-top:8px"><b>WIN:</b> Ketiga ramuan di tanganmu dan kamu lolos lewat EXIT. <b>LOSE:</b> Golem menangkapmu.</div>
+  <div class="howto"><b>HOW TO PLAY:</b> Berdiri diam di balik rak atau di dalam <b>asap kuali</b> membuatmu hampir tak terlihat. Minum <b>ramuan tembus pandang (F)</b> — 3 detik, 2 dosis — saat terdesak. Lempar <b>botol cahaya (Q)</b> untuk mengalihkan golem. Awasi <b>Mimi si Kucing</b> di rak tinggi: tatapannya menyapu dan ia mengeong bila melihatmu.</div>
+  <button class="cta" id="startBtn">Tekan ENTER atau klik untuk mulai mencuri</button>
+  <div class="keys">WASD / Panah — bergerak · Shift — menyelinap pelan &amp; sunyi · E — ambil / interaksi · Q — lempar botol cahaya · F — minum ramuan tembus pandang · M — mute · R — restart</div>
+</div>
+
+<div id="endScreen" class="screen">
+  <div class="kicker" id="endKicker">PENCURIAN BERHASIL</div>
+  <h1 id="endTitle">Kamu Lolos!</h1>
+  <div class="gradeLabel">GRADE</div>
+  <div id="endGrade">S</div>
+  <div id="endStats"></div>
+  <div id="endNote"></div>
+  <button class="cta" id="endButton">Tekan R atau ENTER untuk main lagi</button>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.min.js" } }
+</script>
+<script type="module" src="./src/shots.js"></script>
+<script>
+  document.getElementById('startBtn').addEventListener('click', () => {
+    if (window.__game) { window.__game.audio.ensure(); window.__game.startPlay(); }
+  });
+  document.getElementById('endButton').addEventListener('click', () => {
+    if (window.__game) { window.__game.audio.ensure(); window.__game.startPlay(); }
+  });
+  document.getElementById('muteBtn').addEventListener('click', () => {
+    if (window.__game) {
+      window.__game.audio.ensure();
+      window.__game.audio.toggleMute();
+    }
+  });
+</script>
+</body>
+</html>
